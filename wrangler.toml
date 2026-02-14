@@ -1,0 +1,18 @@
+# CF Worker Trojan 代理节点 — 部署配置
+name = "cf-trojan-proxy"
+main = "_worker.js"
+compatibility_date = "2024-01-01"
+
+# KV 命名空间绑定（需先在 CF Dashboard 创建）
+# [[kv_namespaces]]
+# binding = "CF_IP_KV"
+# id = "88462ab0b6934471b97bb959d935f8bd"
+
+# Cron 定时任务：每 4 小时自动更新优选 IP
+# [triggers]
+# crons = ["0 */4 * * *"]
+
+# 环境变量（可选，覆盖脚本默认值）
+# [vars]
+# pswd = "your-password"
+# proxyip = "your-proxy-ip"
