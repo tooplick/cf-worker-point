@@ -122,87 +122,92 @@ function generateSubConfig(pwd, host, cdnHost) {
  * 生成 Clash-Meta YAML 订阅配置
  */
 function generateClashConfig(pwd, host, cdnHost) {
-    const proxies = [];
+    const proxyLines = [];
     const proxyNames = [];
 
     for (const port of CONFIG.TLS_PORTS) {
-        const name = `ygking.top:${port}`;
+        const name = "ygking.top:" + port;
         proxyNames.push(name);
-        proxies.push(`- name: "${name}"
-  type: trojan
-  server: ${cdnHost}
-  port: ${port}
-  password: ${pwd}
-  udp: false
-  sni: ${host}
-  network: ws
-  ws-opts:
-    path: "${CONFIG.WS_PATH}"
-    headers:
-      Host: ${host}`);
+        proxyLines.push([
+            '- name: "' + name + '"',
+            '  type: trojan',
+            '  server: ' + cdnHost,
+            '  port: ' + port,
+            '  password: ' + pwd,
+            '  udp: false',
+            '  sni: ' + host,
+            '  network: ws',
+            '  ws-opts:',
+            '    path: "' + CONFIG.WS_PATH + '"',
+            '    headers:',
+            '      Host: ' + host,
+        ].join("\n"));
     }
 
-    const proxyNamesYaml = proxyNames.map((n) => `    - "${n}"`).join("\n");
+    const proxyNamesYaml = proxyNames.map(function (n) { return '    - "' + n + '"'; }).join("\n");
 
-    return `port: 7890
-allow-lan: true
-mode: rule
-log-level: info
-unified-delay: true
-global-client-fingerprint: chrome
-dns:
-  enable: false
-  listen: :53
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  default-nameserver:
-    - 223.5.5.5
-    - 114.114.114.114
-    - 8.8.8.8
-  nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  fallback:
-    - https://1.0.0.1/dns-query
-    - tls://dns.google
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
-    ipcidr:
-      - 240.0.0.0/4
-
-proxies:
-${proxies.join("\n\n")}
-
-proxy-groups:
-- name: "🌍选择代理"
-  type: select
-  proxies:
-    - "自动选择"
-    - "负载均衡"
-    - DIRECT
-${proxyNamesYaml}
-
-- name: "自动选择"
-  type: url-test
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  tolerance: 50
-  proxies:
-${proxyNamesYaml}
-
-- name: "负载均衡"
-  type: load-balance
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  proxies:
-${proxyNamesYaml}
-
-rules:
-  - GEOIP,LAN,DIRECT
-  - GEOIP,CN,DIRECT
-  - MATCH,🌍选择代理`;
+    const lines = [
+        "port: 7890",
+        "allow-lan: true",
+        "mode: rule",
+        "log-level: info",
+        "unified-delay: true",
+        "global-client-fingerprint: chrome",
+        "dns:",
+        "  enable: false",
+        "  listen: :53",
+        "  ipv6: true",
+        "  enhanced-mode: fake-ip",
+        "  fake-ip-range: 198.18.0.1/16",
+        "  default-nameserver:",
+        "    - 223.5.5.5",
+        "    - 114.114.114.114",
+        "    - 8.8.8.8",
+        "  nameserver:",
+        "    - https://dns.alidns.com/dns-query",
+        "    - https://doh.pub/dns-query",
+        "  fallback:",
+        "    - https://1.0.0.1/dns-query",
+        "    - tls://dns.google",
+        "  fallback-filter:",
+        "    geoip: true",
+        "    geoip-code: CN",
+        "    ipcidr:",
+        "      - 240.0.0.0/4",
+        "",
+        "proxies:",
+        proxyLines.join("\n\n"),
+        "",
+        "proxy-groups:",
+        '- name: "🌍选择代理"',
+        "  type: select",
+        "  proxies:",
+        '    - "自动选择"',
+        '    - "负载均衡"',
+        "    - DIRECT",
+        proxyNamesYaml,
+        "",
+        '- name: "自动选择"',
+        "  type: url-test",
+        "  url: http://www.gstatic.com/generate_204",
+        "  interval: 300",
+        "  tolerance: 50",
+        "  proxies:",
+        proxyNamesYaml,
+        "",
+        '- name: "负载均衡"',
+        "  type: load-balance",
+        "  url: http://www.gstatic.com/generate_204",
+        "  interval: 300",
+        "  proxies:",
+        proxyNamesYaml,
+        "",
+        "rules:",
+        "  - GEOIP,LAN,DIRECT",
+        "  - GEOIP,CN,DIRECT",
+        "  - MATCH,🌍选择代理",
+    ];
+    return lines.join("\n");
 }
 
 /**
