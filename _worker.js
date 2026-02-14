@@ -38,8 +38,6 @@ export default {
                 }
             }
 
-            sha224Password = sha256.sha224(password);
-
             const upgradeHeader = request.headers.get("Upgrade");
             const url = new URL(request.url);
 
@@ -112,8 +110,8 @@ function handleSubRoute(hostName, format) {
 function generateSubConfig(pwd, host, cdnHost) {
     const lines = [];
     for (const port of CONFIG.TLS_PORTS) {
-        const name = `CF_${cdnHost}_${port}`;
-        lines.push(`trojan://${pwd}@${cdnHost}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${name}`);
+        const name = `ygking.top:${port}`;
+        lines.push(`trojan://${pwd}@${cdnHost}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${encodeURIComponent(name)}`);
     }
     return btoa(lines.join("\n"));
 }
@@ -126,7 +124,7 @@ function generateClashConfig(pwd, host, cdnHost) {
     const proxyNames = [];
 
     for (const port of CONFIG.TLS_PORTS) {
-        const name = `CF_${cdnHost}_${port}`;
+        const name = `ygking.top:${port}`;
         proxyNames.push(name);
         proxies.push(`- name: "${name}"
   type: trojan
@@ -176,11 +174,12 @@ proxies:
 ${proxies.join("\n\n")}
 
 proxy-groups:
-- name: "负载均衡"
-  type: load-balance
-  url: http://www.gstatic.com/generate_204
-  interval: 300
+- name: "🌍选择代理"
+  type: select
   proxies:
+    - "自动选择"
+    - "负载均衡"
+    - DIRECT
 ${proxyNamesYaml}
 
 - name: "自动选择"
@@ -191,12 +190,11 @@ ${proxyNamesYaml}
   proxies:
 ${proxyNamesYaml}
 
-- name: "🌍选择代理"
-  type: select
+- name: "负载均衡"
+  type: load-balance
+  url: http://www.gstatic.com/generate_204
+  interval: 300
   proxies:
-    - "负载均衡"
-    - "自动选择"
-    - DIRECT
 ${proxyNamesYaml}
 
 rules:
@@ -213,7 +211,7 @@ function generateSingboxConfig(pwd, host, cdnHost) {
     const proxyTags = [];
 
     for (const port of CONFIG.TLS_PORTS) {
-        const tag = `CF_${cdnHost}_${port}`;
+        const tag = `ygking.top:${port}`;
         proxyTags.push(tag);
         outbounds.push({
             server: cdnHost,
