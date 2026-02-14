@@ -9,9 +9,9 @@ const CONFIG = {
     PROXY_PORT: "443",           // ProxyIP 端口
     // 优选 IP API（按运营商）
     IP_APIS: {
-        CT: "https://cf.090227.xyz/ct?ips=15",    // 电信
-        CU: "https://cf.090227.xyz/cu?ips=15",    // 联通
-        CMCC: "https://cf.090227.xyz/cmcc?ips=15", // 移动
+        CT: "https://cf.090227.xyz/ct?ips=5",    // 电信
+        CU: "https://cf.090227.xyz/cu?ips=5",    // 联通
+        CMCC: "https://cf.090227.xyz/cmcc?ips=5", // 移动
     },
     // 默认回退 IP（KV 无数据时使用）
     FALLBACK_IPS: {
