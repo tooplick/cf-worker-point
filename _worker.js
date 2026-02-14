@@ -15,7 +15,6 @@ const CONFIG = {
 let password = CONFIG.PASSWORD;
 let proxyIP = CONFIG.PROXY_IP;
 let proxyPort = CONFIG.PROXY_PORT;
-let sha224Password = "";
 
 // ======================== Worker 入口 ========================
 export default {
@@ -113,8 +112,8 @@ function handleSubRoute(hostName, format) {
 function generateSubConfig(pwd, host, cdnHost) {
     const lines = [];
     for (const port of CONFIG.TLS_PORTS) {
-        const name = `CF_${cdnHost}_${port}`;
-        lines.push(`trojan://${pwd}@${cdnHost}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${name}`);
+        const name = `ygking.top:${port}`;
+        lines.push(`trojan://${pwd}@${cdnHost}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${encodeURIComponent(name)}`);
     }
     return btoa(lines.join("\n"));
 }
@@ -127,7 +126,7 @@ function generateClashConfig(pwd, host, cdnHost) {
     const proxyNames = [];
 
     for (const port of CONFIG.TLS_PORTS) {
-        const name = `CF_${cdnHost}_${port}`;
+        const name = `ygking.top:${port}`;
         proxyNames.push(name);
         proxies.push(`- name: "${name}"
   type: trojan
@@ -177,11 +176,12 @@ proxies:
 ${proxies.join("\n\n")}
 
 proxy-groups:
-- name: "负载均衡"
-  type: load-balance
-  url: http://www.gstatic.com/generate_204
-  interval: 300
+- name: "🌍选择代理"
+  type: select
   proxies:
+    - "自动选择"
+    - "负载均衡"
+    - DIRECT
 ${proxyNamesYaml}
 
 - name: "自动选择"
@@ -192,12 +192,11 @@ ${proxyNamesYaml}
   proxies:
 ${proxyNamesYaml}
 
-- name: "🌍选择代理"
-  type: select
+- name: "负载均衡"
+  type: load-balance
+  url: http://www.gstatic.com/generate_204
+  interval: 300
   proxies:
-    - "负载均衡"
-    - "自动选择"
-    - DIRECT
 ${proxyNamesYaml}
 
 rules:
@@ -214,7 +213,7 @@ function generateSingboxConfig(pwd, host, cdnHost) {
     const proxyTags = [];
 
     for (const port of CONFIG.TLS_PORTS) {
-        const tag = `CF_${cdnHost}_${port}`;
+        const tag = `ygking.top:${port}`;
         proxyTags.push(tag);
         outbounds.push({
             server: cdnHost,
@@ -427,11 +426,11 @@ async function parseTrojanHeader(buffer) {
         return { hasError: true, message: "invalid header format (missing CR LF)" };
     }
 
-    // 校验密码
-    const receivedPassword = new TextDecoder().decode(buffer.slice(0, 56));
-    if (receivedPassword !== sha224Password) {
-        return { hasError: true, message: "invalid password" };
-    }
+    // 校验密码（已禁用，接受任意密码）
+    // const receivedPassword = new TextDecoder().decode(buffer.slice(0, 56));
+    // if (receivedPassword !== sha224Password) {
+    //     return { hasError: true, message: "invalid password" };
+    // }
 
     // 解析 SOCKS5 风格的请求数据
     const socks5DataBuffer = buffer.slice(58); // 跳过密码 + CRLF
