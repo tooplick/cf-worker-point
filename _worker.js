@@ -1,4 +1,4 @@
-// CF Trojan Worker — Trojan over WebSocket 代理 + 三网优选IP自动订阅
+// CF Trojan Worker — Trojan over WebSocket 代理 + 优选域名订阅
 // 基于 cloudflare:sockets API，部署到 Cloudflare Workers/Pages
 import { connect } from "cloudflare:sockets";
 
@@ -7,18 +7,7 @@ const CONFIG = {
     PASSWORD: "trojan",          // Trojan 密码，可通过环境变量 pswd 覆盖
     PROXY_IP: "",                // ProxyIP，可通过环境变量 proxyip 覆盖
     PROXY_PORT: "443",           // ProxyIP 端口
-    // 优选 IP API（按运营商）
-    IP_APIS: {
-        CT: "https://cf.090227.xyz/ct?ips=5",    // 电信
-        CU: "https://cf.090227.xyz/cu?ips=5",    // 联通
-        CMCC: "https://cf.090227.xyz/cmcc?ips=5", // 移动
-    },
-    // 默认回退 IP（KV 无数据时使用）
-    FALLBACK_IPS: {
-        CT: ["104.16.0.0", "104.17.0.0", "104.18.0.0"],
-        CU: ["104.19.0.0", "104.20.0.0", "104.21.0.0"],
-        CMCC: ["104.22.0.0", "104.24.0.0", "104.25.0.0"],
-    },
+    CDN_HOST: "ygking.cf.090227.xyz", // 优选域名
     TLS_PORTS: [443, 8443, 2053, 2083, 2087, 2096],
     WS_PATH: "/?ed=2560",
 };
@@ -78,11 +67,11 @@ export default {
             const hostName = request.headers.get("Host");
             switch (url.pathname) {
                 case "/sub":
-                    return await handleSubRoute(env, hostName, "base64");
+                    return handleSubRoute(hostName, "base64");
                 case "/clash":
-                    return await handleSubRoute(env, hostName, "clash");
+                    return handleSubRoute(hostName, "clash");
                 case "/singbox":
-                    return await handleSubRoute(env, hostName, "singbox");
+                    return handleSubRoute(hostName, "singbox");
                 default:
                     // 伪装：返回 CF 请求信息 JSON
                     return new Response(JSON.stringify(request.cf, null, 4), {
@@ -94,57 +83,23 @@ export default {
             return new Response(err.toString(), { status: 500 });
         }
     },
-
-    /**
-     * Cron 定时任务：从第三方 API 获取三网优选 IP 并存入 KV
-     */
-    async scheduled(event, env, ctx) {
-        const results = {};
-        for (const [isp, apiUrl] of Object.entries(CONFIG.IP_APIS)) {
-            try {
-                const resp = await fetch(apiUrl);
-                if (!resp.ok) throw new Error(`API ${isp} returned ${resp.status}`);
-                const text = await resp.text();
-                const ips = text
-                    .split("\n")
-                    .map((line) => line.split("#")[0].trim())
-                    .filter((ip) => ip.length > 0);
-                results[isp] = ips;
-            } catch (e) {
-                console.error(`[Cron] 获取 ${isp} 优选IP失败:`, e);
-                results[isp] = CONFIG.FALLBACK_IPS[isp];
-            }
-        }
-        // 写入 KV
-        if (env.CF_IP_KV) {
-            await env.CF_IP_KV.put("optimized_ips", JSON.stringify(results));
-            console.log("[Cron] 优选IP已更新:", JSON.stringify(results));
-        }
-    },
 };
 
 // ======================== 订阅路由处理 ========================
 
-async function handleSubRoute(env, hostName, format) {
-    // 从 KV 读取优选 IP
-    let ips = null;
-    if (env.CF_IP_KV) {
-        const raw = await env.CF_IP_KV.get("optimized_ips");
-        if (raw) ips = JSON.parse(raw);
-    }
-    if (!ips) ips = CONFIG.FALLBACK_IPS;
-
+function handleSubRoute(hostName, format) {
+    const cdnHost = CONFIG.CDN_HOST;
     switch (format) {
         case "base64":
-            return new Response(generateSubConfig(password, hostName, ips), {
+            return new Response(generateSubConfig(password, hostName, cdnHost), {
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
             });
         case "clash":
-            return new Response(generateClashConfig(password, hostName, ips), {
+            return new Response(generateClashConfig(password, hostName, cdnHost), {
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
             });
         case "singbox":
-            return new Response(generateSingboxConfig(password, hostName, ips), {
+            return new Response(generateSingboxConfig(password, hostName, cdnHost), {
                 headers: { "Content-Type": "application/json;charset=utf-8" },
             });
     }
@@ -155,17 +110,11 @@ async function handleSubRoute(env, hostName, format) {
 /**
  * 生成 Base64 聚合通用订阅（trojan:// 链接）
  */
-function generateSubConfig(pwd, host, ips) {
+function generateSubConfig(pwd, host, cdnHost) {
     const lines = [];
-    // 用 TLS 端口生成各运营商节点
-    for (const [isp, ipList] of Object.entries(ips)) {
-        for (let i = 0; i < ipList.length && i < 5; i++) {
-            for (const port of CONFIG.TLS_PORTS) {
-                const name = `${isp}_${ipList[i]}_${port}`;
-                const line = `trojan://${pwd}@${ipList[i]}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${name}`;
-                lines.push(line);
-            }
-        }
+    for (const port of CONFIG.TLS_PORTS) {
+        const name = `CF_${cdnHost}_${port}`;
+        lines.push(`trojan://${pwd}@${cdnHost}:${port}?security=tls&type=ws&host=${host}&sni=${host}&fp=randomized&path=%2F%3Fed%3D2560#${name}`);
     }
     return btoa(lines.join("\n"));
 }
@@ -173,18 +122,16 @@ function generateSubConfig(pwd, host, ips) {
 /**
  * 生成 Clash-Meta YAML 订阅配置
  */
-function generateClashConfig(pwd, host, ips) {
+function generateClashConfig(pwd, host, cdnHost) {
     const proxies = [];
     const proxyNames = [];
 
-    for (const [isp, ipList] of Object.entries(ips)) {
-        for (let i = 0; i < ipList.length && i < 5; i++) {
-            for (const port of CONFIG.TLS_PORTS) {
-                const name = `${isp}_${ipList[i]}_${port}`;
-                proxyNames.push(name);
-                proxies.push(`- name: "${name}"
+    for (const port of CONFIG.TLS_PORTS) {
+        const name = `CF_${cdnHost}_${port}`;
+        proxyNames.push(name);
+        proxies.push(`- name: "${name}"
   type: trojan
-  server: ${ipList[i]}
+  server: ${cdnHost}
   port: ${port}
   password: ${pwd}
   udp: false
@@ -194,8 +141,6 @@ function generateClashConfig(pwd, host, ips) {
     path: "${CONFIG.WS_PATH}"
     headers:
       Host: ${host}`);
-            }
-        }
     }
 
     const proxyNamesYaml = proxyNames.map((n) => `    - "${n}"`).join("\n");
@@ -264,35 +209,31 @@ rules:
 /**
  * 生成 Sing-Box JSON 订阅配置
  */
-function generateSingboxConfig(pwd, host, ips) {
+function generateSingboxConfig(pwd, host, cdnHost) {
     const outbounds = [];
     const proxyTags = [];
 
-    for (const [isp, ipList] of Object.entries(ips)) {
-        for (let i = 0; i < ipList.length && i < 5; i++) {
-            for (const port of CONFIG.TLS_PORTS) {
-                const tag = `${isp}_${ipList[i]}_${port}`;
-                proxyTags.push(tag);
-                outbounds.push({
-                    server: ipList[i],
-                    server_port: port,
-                    tag: tag,
-                    tls: {
-                        enabled: true,
-                        server_name: host,
-                        insecure: false,
-                        utls: { enabled: true, fingerprint: "chrome" },
-                    },
-                    transport: {
-                        headers: { Host: [host] },
-                        path: CONFIG.WS_PATH,
-                        type: "ws",
-                    },
-                    type: "trojan",
-                    password: pwd,
-                });
-            }
-        }
+    for (const port of CONFIG.TLS_PORTS) {
+        const tag = `CF_${cdnHost}_${port}`;
+        proxyTags.push(tag);
+        outbounds.push({
+            server: cdnHost,
+            server_port: port,
+            tag: tag,
+            tls: {
+                enabled: true,
+                server_name: host,
+                insecure: false,
+                utls: { enabled: true, fingerprint: "chrome" },
+            },
+            transport: {
+                headers: { Host: [host] },
+                path: CONFIG.WS_PATH,
+                type: "ws",
+            },
+            type: "trojan",
+            password: pwd,
+        });
     }
 
     const config = {
