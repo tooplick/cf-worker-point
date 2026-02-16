@@ -5,8 +5,7 @@ compatibility_date = "2024-01-01"
 
 # 环境变量（可选，覆盖脚本默认值）
 # [vars]
-# pswd = "your-password"
- proxyip = "youxuan.cf.090227.xyz"
+# proxyip = "youxuan.cf.090227.xyz"
 
 [observability]
 [observability.logs]
